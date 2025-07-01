@@ -57,3 +57,8 @@ Basic usage:
 ```bash
 ./proxy-server --static-dir dist/ --api 127.0.0.1:8081 --api-path /api
 ```
+
+
+## Example Run
+
+![example](./example.png)
