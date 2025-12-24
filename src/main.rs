@@ -15,7 +15,7 @@ use axum::{
     response::Response,
     routing::{any, get},
 };
-use clap::Parser;
+use argh::FromArgs;
 use nanoid::nanoid;
 use owo_colors::{AnsiColors, DynColors, OwoColorize, Style};
 use std::{net::SocketAddr, path::PathBuf, sync::Arc, time::Instant};
@@ -92,46 +92,23 @@ pub fn colored_id(id: &str) -> String {
     format!("[{}]", id).style(style).to_string() // Explicit String conversion avoids lifetime issues
 }
 
-/// Command-line interface configuration
-#[derive(Debug, Parser)]
-#[command(
-    name = "proxy-server",
-    version,
-    about = "A high-performance reverse proxy server"
-)]
+/// A high-performance reverse proxy server
+#[derive(Debug, FromArgs)]
 struct Cli {
-    /// Directory containing static files to serve
-    #[arg(
-        long,
-        value_name = "DIR",
-        help = "Path to static files directory (e.g. 'dist/')"
-    )]
+    /// path to static files directory (e.g. 'dist/')
+    #[argh(option, long = "static-dir")]
     static_dir: PathBuf,
 
-    /// Backend API server address
-    #[arg(
-        long,
-        value_name = "ADDR",
-        help = "Backend API address (e.g. '127.0.0.1:8081')"
-    )]
+    /// backend API address (e.g. '127.0.0.1:8081')
+    #[argh(option)]
     api: String,
 
-    /// Path prefix for API requests
-    #[arg(
-        long,
-        default_value = "/pz",
-        value_name = "PATH",
-        help = "API path prefix (default: '/pz')"
-    )]
+    /// API path prefix (default: '/pz')
+    #[argh(option, long = "api-path", default = "String::from(\"/pz\")")]
     api_path: String,
 
-    /// Address to bind the server to
-    #[arg(
-        long,
-        default_value = "127.0.0.1:8000",
-        value_name = "ADDR",
-        help = "Server bind address (default: '127.0.0.1:8000')"
-    )]
+    /// server bind address (default: '127.0.0.1:8000')
+    #[argh(option, default = "\"127.0.0.1:8000\".parse().unwrap()")]
     bind: SocketAddr,
 }
 
@@ -229,6 +206,7 @@ async fn serve_static(
 /// - Dual latency tracking (proxy time and total time)
 /// - Error handling with proper status codes
 /// - Streaming response bodies for efficiency
+#[allow(clippy::too_many_arguments)]
 async fn proxy_api(
     State(state): State<Arc<AppState>>,
     Path(path): Path<String>,
@@ -325,7 +303,7 @@ async fn main() {
     // Initialize structured logging with INFO level as default
     tracing_subscriber::fmt().with_max_level(Level::INFO).init();
 
-    let args = Cli::parse();
+    let args: Cli = argh::from_env();
     let canonical_static_dir = args
         .static_dir
         .canonicalize()

@@ -5,7 +5,7 @@ edition = "2024"
 
 [dependencies]
 axum = { version = "0.8" }
-clap = { version = "4.0", features = ["derive"] }
+argh = "0.1.13"
 mime_guess = { version = "2.0" }
 reqwest = { version = "0.12", features = ["stream"] }
 nanoid = { version = "0.4" }
