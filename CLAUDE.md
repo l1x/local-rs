@@ -1,60 +1,83 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+This file provides guidance to agentic coding tools when working in this repository.
 
 ## Project Overview
 
-local-rs is a Rust reverse proxy server built with Axum that serves static files and proxies API requests to a backend server. It features color-coded request tracing with unique request IDs.
+local-rs is a high-performance reverse proxy server in Rust that combines static file serving with API proxying. It's designed for local development workflows where you want a single server to serve frontend assets and proxy API requests to a backend.
 
-## Build Commands
-
-This project uses mise for task management (Rust 1.90.0).
+## Build & Development Commands
 
 ```bash
-# Build (development)
-mise run build-dev
+# Using mise (preferred)
+mise run build-dev          # Debug build
+mise run build-prod         # Release build
+mise run lint               # Clippy with strict warnings (-D warnings)
+mise run tests              # Run tests with output capture
 
-# Build (release)
-mise run build-prod
-
-# Lint (fails on warnings)
-mise run lint
-
-# Run tests
-mise run tests
-
-# Run (requires arguments)
-cargo run -- --static-dir dist/ --api 127.0.0.1:8081 --api-path /api
-
-# Format code
-cargo fmt
+# Using cargo directly
+cargo build                 # Debug build
+cargo build --release       # Release build
+cargo clippy -- -D warnings # Lint (warnings = errors)
+cargo test -- --nocapture   # Run tests
 ```
 
-## CLI Arguments
+## Running the Server
 
-- `--static-dir <DIR>` - Directory containing static files (required)
-- `--api <ADDR>` - Backend API address, e.g., `127.0.0.1:8081` (required)
-- `--api-path <PATH>` - Path prefix for API requests (default: `/pz`)
-- `--bind <ADDR>` - Server bind address (default: `127.0.0.1:8000`)
+```bash
+./target/release/local-rs \
+  --static-dir ./dist \
+  --api 127.0.0.1:8081 \
+  --api-path /api \
+  --bind 127.0.0.1:8000
+```
 
 ## Architecture
 
-The application is a single-file Rust program (`src/main.rs`) using:
+Single-file design (`src/main.rs`) with these key components:
 
-- **Axum** for HTTP routing and middleware
-- **reqwest** for proxying requests to the backend API
-- **tower-http** for HTTP utilities
-- **tracing** for structured logging with color-coded output
+1. **Color Palette** (lines 25-77): 32 ANSI colors for request ID visualization with deterministic hash-based assignment
 
-### Request Flow
+2. **CLI Configuration** (lines 95-136): Clap-based argument parsing
+   - Required: `--static-dir`, `--api`
+   - Optional: `--api-path` (default: `/pz`), `--bind` (default: `127.0.0.1:8000`)
 
-1. All requests pass through `log_requests` middleware which assigns a unique nanoid and records start time
-2. Requests matching `{api_path}/*` are handled by `proxy_api` which forwards to the backend
-3. All other requests fall through to `serve_static` which serves files from `static_dir`
+3. **AppState** (lines 138-147): Thread-safe shared state via `Arc<AppState>`
 
-### Key Components
+4. **Request Logging Middleware** (lines 149-167): Generates colored nanoid per request, tracks latency
 
-- `AppState` - Shared state containing API base URL, API path prefix, and static directory
-- `colored_id()` - Generates ANSI-colored request IDs for log readability
-- `proxy_api()` - Handles API proxying with header filtering and response streaming
-- `serve_static()` - Serves static files with MIME type detection
+5. **Static File Handler** (lines 169-222): Serves files with auto `index.html` and MIME detection
+
+6. **API Proxy Handler** (lines 224-313): Full reverse proxy with:
+   - Hop-by-hop header filtering
+   - Query parameter preservation
+   - Streaming request/response bodies
+   - Dual latency tracking (proxy + total)
+
+## Request Flow
+
+```
+Incoming Request
+    ↓
+log_requests() middleware (assign ID, start timer)
+    ↓
+Router decision:
+  - Path starts with {api_path}/* → proxy_api()
+  - All other paths → serve_static() (fallback)
+    ↓
+Response logged with latency
+```
+
+## Key Dependencies
+
+- **axum** 0.8: Web framework and routing
+- **tokio**: Async runtime
+- **reqwest**: HTTP client for proxy requests
+- **clap**: CLI argument parsing
+- **tracing**: Structured logging
+- **nanoid**: Short unique request IDs
+- **mime_guess**: Content-Type detection
+
+## Linting
+
+Strict Clippy enforcement: all warnings treated as errors. Run `mise run lint` before committing.
