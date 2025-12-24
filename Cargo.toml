@@ -4,19 +4,50 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-axum = { version = "0.8" }
-argh = "0.1.13"
-mime_guess = { version = "2.0" }
-reqwest = { version = "0.12", features = ["stream"] }
-nanoid = { version = "0.4" }
-tokio = { version = "1.41.1", features = ["full"] }
+argh = { version = "0" }
+axum = { version = "0" }
+mime_guess = { version = "2" }
+nanoid = { version = "0" }
+owo-colors = "4"
+reqwest = { version = "0", features = ["stream"] }
+tokio = { version = "1", features = ["full"] }
 tower-http = { version = "0.6", features = [
-  "trace",
-  "compression-gzip",
   "compression-br",
+  "compression-gzip",
   "compression-zstd",
-  "fs"
+  "fs",
+  "trace"
 ] }
-tracing = { version = "0.1" }
-tracing-subscriber = { version = "0.3", features = ["fmt", "ansi"] }
-owo-colors = "4.2.2"
+tracing = { version = "0" }
+tracing-subscriber = { version = "0", features = ["ansi", "fmt"] }
+
+# [[bench]]
+# harness = false
+# name = "simple_html_benchmark"
+
+[dev-dependencies]
+criterion = { version = "0", features = ["html_reports"] }
+
+[profile.bench]
+lto = "thin"
+codegen-units = 8
+
+[profile.dev]
+lto = "thin"
+codegen-units = 8
+
+[profile.release]
+opt-level = "s"  # reduces binary size
+debug = "full"  # No one needs an undebuggable release binary
+split-debuginfo = "packed"  # generates a separate *.dwp/*.dSYM so the binary can get stripped
+strip = "symbols"  # See split-debuginfo - reduces binary size
+lto = true  # reduces binary size
+panic = "abort"  # reduces binary size
+incremental = true  # Improves re-compile times
+codegen-units = 1  # reduces binary size
+
+[profile.profiling]
+inherits = "release"  # Use all the optimization settings from the release profile
+debug = true  # Include debug info so 'perf' can find function names
+split-debuginfo = "off"  # Keep debug info in the binary
+strip = false  # Do NOT strip symbols
