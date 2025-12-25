@@ -44,6 +44,7 @@ async fn main() {
         api_base_url,
         api_path: args.api_path.trim_end_matches('/').to_string(),
         static_dir: canonical_static_dir.clone(),
+        client: reqwest::Client::new(),
     });
 
     let app = Router::new()

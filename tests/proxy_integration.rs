@@ -23,6 +23,7 @@ async fn test_proxy_backend_unavailable() {
         api_base_url: "http://127.0.0.1:99999".to_string(), // Non-existent port
         api_path: "/api".to_string(),
         static_dir: static_dir.clone(),
+        client: reqwest::Client::new(),
     });
 
     let proxy_app = Router::new()
@@ -101,6 +102,7 @@ async fn test_proxy_with_mock_backend() {
         api_base_url: format!("http://{}", backend_addr),
         api_path: "/api".to_string(),
         static_dir: static_dir.clone(),
+        client: reqwest::Client::new(),
     });
 
     let proxy_app = Router::new()
@@ -183,6 +185,7 @@ async fn test_proxy_query_parameters() {
         api_base_url: format!("http://{}", backend_addr),
         api_path: "/api".to_string(),
         static_dir: static_dir.clone(),
+        client: reqwest::Client::new(),
     });
 
     let proxy_app = Router::new()
@@ -245,6 +248,7 @@ async fn test_proxy_header_filtering() {
         api_base_url: format!("http://{}", backend_addr),
         api_path: "/api".to_string(),
         static_dir: static_dir.clone(),
+        client: reqwest::Client::new(),
     });
 
     let proxy_app = Router::new()
@@ -315,6 +319,7 @@ async fn test_proxy_error_propagation() {
         api_base_url: format!("http://{}", backend_addr),
         api_path: "/api".to_string(),
         static_dir: static_dir.clone(),
+        client: reqwest::Client::new(),
     });
 
     let proxy_app = Router::new()

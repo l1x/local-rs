@@ -165,14 +165,14 @@ pub async fn proxy_api(
     uri: Uri,
     body: Bytes,
 ) -> Result<Response, StatusCode> {
-    let client = reqwest::Client::new();
     let full_url = build_api_url(&state.api_base_url, &state.api_path, &path, uri.query());
     let filtered_headers = filter_request_headers(&headers);
 
     info!("{} → {} {}", colored_id(&id), "API".yellow(), full_url);
     let proxy_start_time = Instant::now();
 
-    let response = client
+    let response = state
+        .client
         .request(method.clone(), &full_url)
         .headers(filtered_headers)
         .body(body)

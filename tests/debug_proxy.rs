@@ -47,6 +47,7 @@ async fn test_simple_proxy() {
         api_base_url: format!("http://{}", backend_addr),
         api_path: api_path.trim_end_matches('/').to_string(),
         static_dir: static_dir.clone(),
+        client: reqwest::Client::new(),
     });
 
     println!("Creating proxy app");

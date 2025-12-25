@@ -11,4 +11,6 @@ pub struct AppState {
     pub api_path: String,
     /// Root directory for static file serving
     pub static_dir: PathBuf,
+    /// Reusable HTTP client for proxying
+    pub client: reqwest::Client,
 }
