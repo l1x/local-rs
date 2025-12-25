@@ -7,7 +7,11 @@ use axum::{
     response::Response,
 };
 use owo_colors::OwoColorize;
-use std::{path::{Path as FsPath, PathBuf}, sync::Arc, time::Instant};
+use std::{
+    path::{Path as FsPath, PathBuf},
+    sync::Arc,
+    time::Instant,
+};
 use tokio::fs;
 use tracing::info;
 
@@ -15,11 +19,16 @@ use crate::colors::colored_id;
 use crate::state::AppState;
 
 /// Headers that should not be forwarded in proxy requests
-const HOP_BY_HOP_REQUEST_HEADERS: &[&str] = &["host", "accept-encoding", "connection", "keep-alive"];
+const HOP_BY_HOP_REQUEST_HEADERS: &[&str] =
+    &["host", "accept-encoding", "connection", "keep-alive"];
 
 /// Headers that should not be forwarded in proxy responses
-const HOP_BY_HOP_RESPONSE_HEADERS: &[&str] =
-    &["transfer-encoding", "content-encoding", "connection", "keep-alive"];
+const HOP_BY_HOP_RESPONSE_HEADERS: &[&str] = &[
+    "transfer-encoding",
+    "content-encoding",
+    "connection",
+    "keep-alive",
+];
 
 /// Resolves a URI path to a file system path, handling index.html fallback
 ///
@@ -30,8 +39,14 @@ const HOP_BY_HOP_RESPONSE_HEADERS: &[&str] =
 /// # Returns
 /// The resolved file path, with index.html appended for directory paths
 pub fn resolve_static_path(static_dir: &FsPath, uri_path: &str) -> PathBuf {
-    let path = uri_path.trim_start_matches('/');
-    let mut file_path = static_dir.join(path);
+    let mut file_path = static_dir.to_path_buf();
+
+    // Normalize path and prevent directory traversal by only using Normal components
+    for component in FsPath::new(uri_path).components() {
+        if let std::path::Component::Normal(c) = component {
+            file_path.push(c);
+        }
+    }
 
     if file_path.is_dir() {
         file_path.push("index.html");
@@ -39,7 +54,6 @@ pub fn resolve_static_path(static_dir: &FsPath, uri_path: &str) -> PathBuf {
 
     file_path
 }
-
 /// Filters out hop-by-hop headers from request headers
 ///
 /// These headers are connection-specific and should not be forwarded
@@ -78,7 +92,12 @@ pub fn filter_response_headers(headers: &HeaderMap) -> HeaderMap {
 ///
 /// # Returns
 /// The complete URL with query string if present
-pub fn build_api_url(api_base_url: &str, api_path: &str, request_path: &str, query: Option<&str>) -> String {
+pub fn build_api_url(
+    api_base_url: &str,
+    api_path: &str,
+    request_path: &str,
+    query: Option<&str>,
+) -> String {
     let base_url = format!(
         "{}{}/{}",
         api_base_url,
@@ -197,6 +216,7 @@ pub async fn proxy_api(
 mod tests {
     use super::*;
     use axum::http::HeaderName;
+    use std::fs;
 
     #[test]
     fn test_resolve_static_path_simple() {
@@ -209,24 +229,68 @@ mod tests {
     fn test_resolve_static_path_strips_leading_slash() {
         let static_dir = PathBuf::from("/var/www");
         let result = resolve_static_path(&static_dir, "///multiple/slashes.js");
-        assert_eq!(result, PathBuf::from("/var/www//multiple/slashes.js"));
+        assert_eq!(result, PathBuf::from("/var/www/multiple/slashes.js"));
     }
 
     #[test]
     fn test_resolve_static_path_empty() {
         let static_dir = PathBuf::from("/var/www");
         let result = resolve_static_path(&static_dir, "/");
-        // When path is empty, we just get the static dir (index.html added if it's a dir)
+        // When path is empty and not a real dir, we just get the static dir
         assert_eq!(result, PathBuf::from("/var/www"));
+    }
+
+    #[test]
+    fn test_resolve_static_path_directory_resolution() {
+        let base = std::env::current_dir()
+            .unwrap()
+            .join("target")
+            .join("test_static_res");
+        let _ = fs::remove_dir_all(&base);
+        fs::create_dir_all(&base).unwrap();
+
+        // Test directory resolution to index.html
+        let result = resolve_static_path(&base, "/");
+        assert_eq!(result, base.join("index.html"));
+
+        let sub = base.join("sub");
+        fs::create_dir_all(&sub).unwrap();
+        let result = resolve_static_path(&base, "/sub");
+        assert_eq!(result, sub.join("index.html"));
+
+        let _ = fs::remove_dir_all(&base);
+    }
+
+    #[test]
+    fn test_resolve_static_path_traversal() {
+        let static_dir = PathBuf::from("/var/www");
+        // Test that it handles .. by ignoring it or staying within the static dir
+        let result = resolve_static_path(&static_dir, "/../etc/passwd");
+
+        // With the new implementation, it should ignore .. and result in /var/www/etc/passwd
+        assert_eq!(result, PathBuf::from("/var/www/etc/passwd"));
+        assert!(result.starts_with(&static_dir));
     }
 
     #[test]
     fn test_filter_request_headers_removes_hop_by_hop() {
         let mut headers = HeaderMap::new();
-        headers.insert(HeaderName::from_static("host"), HeaderValue::from_static("example.com"));
-        headers.insert(HeaderName::from_static("connection"), HeaderValue::from_static("keep-alive"));
-        headers.insert(HeaderName::from_static("x-custom"), HeaderValue::from_static("value"));
-        headers.insert(HeaderName::from_static("accept-encoding"), HeaderValue::from_static("gzip"));
+        headers.insert(
+            HeaderName::from_static("host"),
+            HeaderValue::from_static("example.com"),
+        );
+        headers.insert(
+            HeaderName::from_static("connection"),
+            HeaderValue::from_static("keep-alive"),
+        );
+        headers.insert(
+            HeaderName::from_static("x-custom"),
+            HeaderValue::from_static("value"),
+        );
+        headers.insert(
+            HeaderName::from_static("accept-encoding"),
+            HeaderValue::from_static("gzip"),
+        );
 
         let filtered = filter_request_headers(&headers);
 
@@ -240,9 +304,18 @@ mod tests {
     #[test]
     fn test_filter_response_headers_removes_hop_by_hop() {
         let mut headers = HeaderMap::new();
-        headers.insert(HeaderName::from_static("transfer-encoding"), HeaderValue::from_static("chunked"));
-        headers.insert(HeaderName::from_static("content-type"), HeaderValue::from_static("application/json"));
-        headers.insert(HeaderName::from_static("connection"), HeaderValue::from_static("close"));
+        headers.insert(
+            HeaderName::from_static("transfer-encoding"),
+            HeaderValue::from_static("chunked"),
+        );
+        headers.insert(
+            HeaderName::from_static("content-type"),
+            HeaderValue::from_static("application/json"),
+        );
+        headers.insert(
+            HeaderName::from_static("connection"),
+            HeaderValue::from_static("close"),
+        );
 
         let filtered = filter_response_headers(&headers);
 
@@ -260,7 +333,12 @@ mod tests {
 
     #[test]
     fn test_build_api_url_with_query() {
-        let url = build_api_url("http://localhost:8081", "/api", "users", Some("page=1&limit=10"));
+        let url = build_api_url(
+            "http://localhost:8081",
+            "/api",
+            "users",
+            Some("page=1&limit=10"),
+        );
         assert_eq!(url, "http://localhost:8081/api/users?page=1&limit=10");
     }
 

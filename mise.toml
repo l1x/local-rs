@@ -9,6 +9,10 @@ rust = "1.90.0"
 description = "Lint with Clippy, failing on warnings"
 run = "cargo clippy -- -D warnings"
 
+[tasks.fmt]
+description = "Format code with cargo fmt"
+run = "cargo fmt"
+
 [tasks.tests]
 description = "Running tests"
 run = "cargo test -- --nocapture"
