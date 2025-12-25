@@ -75,13 +75,43 @@ mod tests {
         // Same ID should always get the same color
         let color1 = get_color_for_id("abc123");
         let color2 = get_color_for_id("abc123");
-        assert!(std::mem::discriminant(&color1) == std::mem::discriminant(&color2));
+        assert_eq!(color1, color2);
+    }
+
+    #[test]
+    fn test_different_ids_get_different_colors() {
+        // Different IDs should eventually map to different colors
+        // (Not guaranteed for any two IDs due to pigeonhole principle, but likely for many)
+        let mut color_discriminants = std::collections::HashSet::new();
+        for i in 0..100 {
+            let id = format!("id-{}", i);
+            let color = get_color_for_id(&id);
+            // Use discriminant since AnsiColors doesn't implement Hash
+            color_discriminants.insert(format!("{:?}", std::mem::discriminant(&color)));
+        }
+        // With 32 colors and 100 random-ish IDs, we expect to see many distinct colors
+        assert!(color_discriminants.len() > 5, "Color distribution is poor: only {} colors used", color_discriminants.len());
     }
 
     #[test]
     fn test_colored_id_format() {
-        let result = colored_id("test");
+        let id = "test-id";
+        let result = colored_id(id);
+        
         // Should contain the ID wrapped in brackets
-        assert!(result.contains("test"));
+        assert!(result.contains("[test-id]"));
+        
+        // Should contain ANSI escape codes (starts with \x1b[)
+        assert!(result.contains("\x1b["));
+    }
+
+    #[test]
+    fn test_hashing_consistency() {
+        // The simple hash function: acc.wrapping_mul(31).wrapping_add(c as u32)
+        // For "A" (65): 0 * 31 + 65 = 65. 65 % 32 = 1. COLORS[1] = Green
+        assert_eq!(get_color_for_id("A"), COLORS[1]);
+        
+        // For "AA": (65 * 31 + 65) = 2080. 2080 % 32 = 0. COLORS[0] = Red
+        assert_eq!(get_color_for_id("AA"), COLORS[0]);
     }
 }
