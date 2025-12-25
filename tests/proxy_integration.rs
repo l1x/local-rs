@@ -1,12 +1,12 @@
 //! Integration tests for proxy behavior
 
 use axum::{
+    Router,
     body::Body,
     http::{Request, StatusCode, header},
+    middleware as axum_middleware,
     response::Response,
     routing::{any, get},
-    Router,
-    middleware as axum_middleware,
 };
 use local_rs::handlers::{proxy_api, serve_static};
 use local_rs::middleware::log_requests;
@@ -18,13 +18,13 @@ async fn test_proxy_backend_unavailable() {
     // Use a non-existent backend address
     let static_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("test_static");
     tokio::fs::create_dir_all(&static_dir).await.unwrap();
-    
+
     let state = Arc::new(AppState {
         api_base_url: "http://127.0.0.1:99999".to_string(), // Non-existent port
         api_path: "/api".to_string(),
         static_dir: static_dir.clone(),
     });
-    
+
     let proxy_app = Router::new()
         .route("/api/{*path}", any(proxy_api))
         .fallback(get(serve_static))
@@ -33,7 +33,7 @@ async fn test_proxy_backend_unavailable() {
 
     let proxy_listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
     let proxy_addr = proxy_listener.local_addr().unwrap();
-    
+
     tokio::spawn(async move {
         axum::serve(proxy_listener, proxy_app).await.unwrap();
     });
@@ -51,37 +51,44 @@ async fn test_proxy_backend_unavailable() {
     assert_eq!(response.status(), StatusCode::BAD_GATEWAY);
 }
 
-#[tokio::test] 
+#[tokio::test]
 async fn test_proxy_with_mock_backend() {
     // Create a simple mock backend server
     let backend_app = Router::new()
-        .route("/api/test", get(|| async {
-            let mut response = Response::new(Body::from("Backend response"));
-            response.headers_mut().insert(
-                "content-type", 
-                header::HeaderValue::from_static("application/json")
-            );
-            response.headers_mut().insert(
-                "x-backend", 
-                header::HeaderValue::from_static("test-value")
-            );
-            response
-        }))
-        .route("/api/echo", axum::routing::post(|request: Request<Body>| async move {
-            let body_bytes = axum::body::to_bytes(request.into_body(), usize::MAX).await.unwrap();
-            let body_str = String::from_utf8(body_bytes.to_vec()).unwrap();
-            
-            let mut response = Response::new(Body::from(format!("Echo: {}", body_str)));
-            response.headers_mut().insert(
-                "content-type", 
-                header::HeaderValue::from_static("text/plain")
-            );
-            response
-        }));
+        .route(
+            "/api/test",
+            get(|| async {
+                let mut response = Response::new(Body::from("Backend response"));
+                response.headers_mut().insert(
+                    "content-type",
+                    header::HeaderValue::from_static("application/json"),
+                );
+                response
+                    .headers_mut()
+                    .insert("x-backend", header::HeaderValue::from_static("test-value"));
+                response
+            }),
+        )
+        .route(
+            "/api/echo",
+            axum::routing::post(|request: Request<Body>| async move {
+                let body_bytes = axum::body::to_bytes(request.into_body(), usize::MAX)
+                    .await
+                    .unwrap();
+                let body_str = String::from_utf8(body_bytes.to_vec()).unwrap();
+
+                let mut response = Response::new(Body::from(format!("Echo: {}", body_str)));
+                response.headers_mut().insert(
+                    "content-type",
+                    header::HeaderValue::from_static("text/plain"),
+                );
+                response
+            }),
+        );
 
     let backend_listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
     let backend_addr = backend_listener.local_addr().unwrap();
-    
+
     tokio::spawn(async move {
         axum::serve(backend_listener, backend_app).await.unwrap();
     });
@@ -89,13 +96,13 @@ async fn test_proxy_with_mock_backend() {
     // Create static directory and proxy app
     let static_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("test_static");
     tokio::fs::create_dir_all(&static_dir).await.unwrap();
-    
+
     let state = Arc::new(AppState {
         api_base_url: format!("http://{}", backend_addr),
         api_path: "/api".to_string(),
         static_dir: static_dir.clone(),
     });
-    
+
     let proxy_app = Router::new()
         .route("/api/{*path}", any(proxy_api))
         .fallback(get(serve_static))
@@ -104,7 +111,7 @@ async fn test_proxy_with_mock_backend() {
 
     let proxy_listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
     let proxy_addr = proxy_listener.local_addr().unwrap();
-    
+
     tokio::spawn(async move {
         axum::serve(proxy_listener, proxy_app).await.unwrap();
     });
@@ -123,7 +130,10 @@ async fn test_proxy_with_mock_backend() {
         .unwrap();
 
     assert_eq!(response.status(), StatusCode::OK);
-    assert_eq!(response.headers().get("content-type").unwrap(), "application/json");
+    assert_eq!(
+        response.headers().get("content-type").unwrap(),
+        "application/json"
+    );
     assert_eq!(response.headers().get("x-backend").unwrap(), "test-value");
     assert_eq!(response.text().await.unwrap(), "Backend response");
 
@@ -138,38 +148,43 @@ async fn test_proxy_with_mock_backend() {
         .unwrap();
 
     assert_eq!(response.status(), StatusCode::OK);
-    assert_eq!(response.text().await.unwrap(), format!("Echo: {}", request_body));
+    assert_eq!(
+        response.text().await.unwrap(),
+        format!("Echo: {}", request_body)
+    );
 }
 
 #[tokio::test]
 async fn test_proxy_query_parameters() {
-    let backend_app = Router::new()
-        .route("/api/search", get(|request: Request<Body>| async move {
+    let backend_app = Router::new().route(
+        "/api/search",
+        get(|request: Request<Body>| async move {
             let query_string = request.uri().query().unwrap_or("");
             let mut response = Response::new(Body::from(format!("Query: {}", query_string)));
             response.headers_mut().insert(
-                "content-type", 
-                header::HeaderValue::from_static("text/plain")
+                "content-type",
+                header::HeaderValue::from_static("text/plain"),
             );
             response
-        }));
+        }),
+    );
 
     let backend_listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
     let backend_addr = backend_listener.local_addr().unwrap();
-    
+
     tokio::spawn(async move {
         axum::serve(backend_listener, backend_app).await.unwrap();
     });
 
     let static_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("test_static");
     tokio::fs::create_dir_all(&static_dir).await.unwrap();
-    
+
     let state = Arc::new(AppState {
         api_base_url: format!("http://{}", backend_addr),
         api_path: "/api".to_string(),
         static_dir: static_dir.clone(),
     });
-    
+
     let proxy_app = Router::new()
         .route("/api/{*path}", any(proxy_api))
         .fallback(get(serve_static))
@@ -178,7 +193,7 @@ async fn test_proxy_query_parameters() {
 
     let proxy_listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
     let proxy_addr = proxy_listener.local_addr().unwrap();
-    
+
     tokio::spawn(async move {
         axum::serve(proxy_listener, proxy_app).await.unwrap();
     });
@@ -187,7 +202,10 @@ async fn test_proxy_query_parameters() {
 
     let client = reqwest::Client::new();
     let response = client
-        .get(&format!("http://{}/api/search?q=test&page=2&limit=10", proxy_addr))
+        .get(&format!(
+            "http://{}/api/search?q=test&page=2&limit=10",
+            proxy_addr
+        ))
         .send()
         .await
         .unwrap();
@@ -201,32 +219,34 @@ async fn test_proxy_query_parameters() {
 
 #[tokio::test]
 async fn test_proxy_header_filtering() {
-    let backend_app = Router::new()
-        .route("/api/headers", get(|request: Request<Body>| async move {
+    let backend_app = Router::new().route(
+        "/api/headers",
+        get(|request: Request<Body>| async move {
             // Echo back all headers we received
             let mut response = Response::new(Body::from("Headers received"));
             for (name, value) in request.headers().iter() {
                 response.headers_mut().insert(name.clone(), value.clone());
             }
             response
-        }));
+        }),
+    );
 
     let backend_listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
     let backend_addr = backend_listener.local_addr().unwrap();
-    
+
     tokio::spawn(async move {
         axum::serve(backend_listener, backend_app).await.unwrap();
     });
 
     let static_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("test_static");
     tokio::fs::create_dir_all(&static_dir).await.unwrap();
-    
+
     let state = Arc::new(AppState {
         api_base_url: format!("http://{}", backend_addr),
         api_path: "/api".to_string(),
         static_dir: static_dir.clone(),
     });
-    
+
     let proxy_app = Router::new()
         .route("/api/{*path}", any(proxy_api))
         .fallback(get(serve_static))
@@ -235,7 +255,7 @@ async fn test_proxy_header_filtering() {
 
     let proxy_listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
     let proxy_addr = proxy_listener.local_addr().unwrap();
-    
+
     tokio::spawn(async move {
         axum::serve(proxy_listener, proxy_app).await.unwrap();
     });
@@ -254,44 +274,49 @@ async fn test_proxy_header_filtering() {
         .unwrap();
 
     assert_eq!(response.status(), StatusCode::OK);
-    
+
     // Hop-by-hop headers should be filtered out (except those re-added by reqwest like host)
     assert!(response.headers().get("connection").is_none());
     assert!(response.headers().get("accept-encoding").is_none());
-    
+
     // Custom headers should be preserved
-    assert_eq!(response.headers().get("x-custom").unwrap(), "should-preserve");
+    assert_eq!(
+        response.headers().get("x-custom").unwrap(),
+        "should-preserve"
+    );
 }
 
 #[tokio::test]
 async fn test_proxy_error_propagation() {
-    let backend_app = Router::new()
-        .route("/api/error", get(|| async {
+    let backend_app = Router::new().route(
+        "/api/error",
+        get(|| async {
             let mut response = Response::new(Body::from("Backend error"));
             *response.status_mut() = StatusCode::INTERNAL_SERVER_ERROR;
             response.headers_mut().insert(
-                "x-error", 
-                header::HeaderValue::from_static("backend-failure")
+                "x-error",
+                header::HeaderValue::from_static("backend-failure"),
             );
             response
-        }));
+        }),
+    );
 
     let backend_listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
     let backend_addr = backend_listener.local_addr().unwrap();
-    
+
     tokio::spawn(async move {
         axum::serve(backend_listener, backend_app).await.unwrap();
     });
 
     let static_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("test_static");
     tokio::fs::create_dir_all(&static_dir).await.unwrap();
-    
+
     let state = Arc::new(AppState {
         api_base_url: format!("http://{}", backend_addr),
         api_path: "/api".to_string(),
         static_dir: static_dir.clone(),
     });
-    
+
     let proxy_app = Router::new()
         .route("/api/{*path}", any(proxy_api))
         .fallback(get(serve_static))
@@ -300,7 +325,7 @@ async fn test_proxy_error_propagation() {
 
     let proxy_listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
     let proxy_addr = proxy_listener.local_addr().unwrap();
-    
+
     tokio::spawn(async move {
         axum::serve(proxy_listener, proxy_app).await.unwrap();
     });
@@ -315,6 +340,9 @@ async fn test_proxy_error_propagation() {
         .unwrap();
 
     assert_eq!(response.status(), StatusCode::INTERNAL_SERVER_ERROR);
-    assert_eq!(response.headers().get("x-error").unwrap(), "backend-failure");
+    assert_eq!(
+        response.headers().get("x-error").unwrap(),
+        "backend-failure"
+    );
     assert_eq!(response.text().await.unwrap(), "Backend error");
 }

@@ -1,11 +1,6 @@
 //! Request logging middleware.
 
-use axum::{
-    body::Body,
-    http::Request,
-    middleware::Next,
-    response::Response,
-};
+use axum::{body::Body, http::Request, middleware::Next, response::Response};
 use nanoid::nanoid;
 use std::time::Instant;
 use tracing::info;

@@ -12,7 +12,10 @@ pub mod handlers;
 pub mod middleware;
 pub mod state;
 
-use axum::{Router, middleware as axum_middleware, routing::{any, get}};
+use axum::{
+    Router, middleware as axum_middleware,
+    routing::{any, get},
+};
 use std::sync::Arc;
 use tracing::{Level, info};
 
