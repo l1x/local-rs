@@ -55,7 +55,7 @@ A Rust-based proxy server that serves static files and proxies API requests to a
 Basic usage:
 
 ```bash
-./proxy-server --static-dir dist/ --api 127.0.0.1:8081 --api-path /api
+./local-rs --static-dir dist/ --api 127.0.0.1:8081 --api-path /api
 ```
 
 
