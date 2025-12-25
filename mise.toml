@@ -44,3 +44,11 @@ run = "bd stats"
 [tasks.show-issue-tree]
 description = "Show dependency tree for an issue (use: mise run issue-tree -- bd-1)"
 run = "bd dep tree"
+
+[tasks.coverage]
+description = "Run tests with coverage using cargo-tarpaulin"
+run = "cargo tarpaulin --out Stdout --skip-clean"
+
+[tasks.coverage-html]
+description = "Run tests with coverage and generate HTML report"
+run = "cargo tarpaulin --out Html --skip-clean --output-dir target/tarpaulin"

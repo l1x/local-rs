@@ -59,6 +59,35 @@ Basic usage:
 ```
 
 
+## Development
+
+### Running Tests
+
+```bash
+mise run tests
+```
+
+### Test Coverage
+
+Coverage is measured using [cargo-tarpaulin](https://github.com/xd009642/tarpaulin).
+
+```bash
+# Run coverage with console output
+mise run coverage
+
+# Generate HTML report in target/tarpaulin/
+mise run coverage-html
+```
+
+**Current Coverage Baseline**: 25.41% (31/122 lines)
+
+| Module | Coverage |
+|--------|----------|
+| src/colors.rs | 100% (8/8) |
+| src/handlers.rs | 28% (23/82) |
+| src/main.rs | 0% (0/24) |
+| src/middleware.rs | 0% (0/8) |
+
 ## Example Run
 
 ![example](./example.png)
