@@ -34,25 +34,16 @@ cargo test -- --nocapture   # Run tests
 
 ## Architecture
 
-Single-file design (`src/main.rs`) with these key components:
+The project is structured into several modules:
 
-1. **Color Palette** (lines 25-77): 32 ANSI colors for request ID visualization with deterministic hash-based assignment
-
-2. **CLI Configuration** (lines 95-136): Clap-based argument parsing
-   - Required: `--static-dir`, `--api`
-   - Optional: `--api-path` (default: `/pz`), `--bind` (default: `127.0.0.1:8000`)
-
-3. **AppState** (lines 138-147): Thread-safe shared state via `Arc<AppState>`
-
-4. **Request Logging Middleware** (lines 149-167): Generates colored nanoid per request, tracks latency
-
-5. **Static File Handler** (lines 169-222): Serves files with auto `index.html` and MIME detection
-
-6. **API Proxy Handler** (lines 224-313): Full reverse proxy with:
-   - Hop-by-hop header filtering
-   - Query parameter preservation
-   - Streaming request/response bodies
-   - Dual latency tracking (proxy + total)
+1. **`src/main.rs`**: Entry point, initializes tracing, sets up the Axum router and starts the server.
+2. **`src/cli.rs`**: Defines the `Cli` struct for argument parsing using `argh`.
+3. **`src/state.rs`**: Defines the `AppState` shared state.
+4. **`src/colors.rs`**: Implements deterministic colored IDs for requests.
+5. **`src/middleware.rs`**: Request logging middleware that assigns IDs and tracks latency.
+6. **`src/handlers.rs`**: Contains the core logic for:
+   - `serve_static`: Serves files with auto `index.html` and MIME detection.
+   - `proxy_api`: Full reverse proxy with hop-by-hop header filtering, query preservation, and streaming bodies.
 
 ## Request Flow
 
@@ -70,13 +61,14 @@ Response logged with latency
 
 ## Key Dependencies
 
-- **axum** 0.8: Web framework and routing
+- **axum**: Web framework and routing
 - **tokio**: Async runtime
 - **reqwest**: HTTP client for proxy requests
-- **clap**: CLI argument parsing
+- **argh**: Lightweight CLI argument parsing
 - **tracing**: Structured logging
 - **nanoid**: Short unique request IDs
 - **mime_guess**: Content-Type detection
+- **owo-colors**: Terminal styling
 
 ## Linting
 

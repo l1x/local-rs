@@ -6,11 +6,11 @@
 //! - Detailed logging with color-coded request IDs
 //! - Latency tracking for both static and API requests
 
-mod cli;
-mod colors;
-mod handlers;
-mod middleware;
-mod state;
+pub mod cli;
+pub mod colors;
+pub mod handlers;
+pub mod middleware;
+pub mod state;
 
 use axum::{Router, middleware as axum_middleware, routing::{any, get}};
 use std::sync::Arc;
